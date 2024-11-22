@@ -1,45 +1,46 @@
 import streamlit as st
 import whisper
+import io
+import numpy as np
+import torch
 from pydub import AudioSegment
-import os
 
 # Load the Whisper model
-model = whisper.load_model("base")
+model = whisper.load_model("base")  # You can change this to "tiny", "small", "medium", or "large"
 
-def transcribe_audio(file_path):
-    # Convert audio to the format Whisper can process (e.g., wav)
-    audio = AudioSegment.from_file(file_path)
-    audio = audio.set_channels(1).set_frame_rate(16000)
-    temp_file = "temp_audio.wav"
-    audio.export(temp_file, format="wav")
+def load_audio_file(audio_file):
+    """Load audio file into a format that Whisper can process."""
+    audio = AudioSegment.from_file(audio_file)
+    audio = audio.set_channels(1).set_frame_rate(16000)  # Whisper works better with 1 channel (mono) and 16kHz sample rate
+    audio = np.array(audio.get_array_of_samples())
+    return audio
 
-    # Use Whisper to transcribe the audio
-    result = model.transcribe(temp_file)
-    os.remove(temp_file)  # Clean up the temporary file
+def transcribe_audio(audio):
+    """Transcribe audio using Whisper."""
+    result = model.transcribe(audio)
     return result['text']
 
 # Streamlit UI
-st.title("Audio Transcription with Whisper")
+st.title("Whisper Audio Transcription App")
+st.write("Upload an audio file to get transcribed text using OpenAI Whisper.")
 
-st.write("Upload an audio file to transcribe it.")
-
-audio_file = st.file_uploader("Choose an audio file", type=["mp3", "m4a", "wav", "flac"])
+# File uploader
+audio_file = st.file_uploader("Upload an audio file", type=["mp3", "m4a", "wav", "flac"])
 
 if audio_file is not None:
-    # Save the uploaded file to a temporary location
-    with open("uploaded_audio", "wb") as f:
-        f.write(audio_file.getbuffer())
+    st.audio(audio_file, format="audio/wav")  # Preview the uploaded audio
+    st.write("Processing the file...")
 
-    # Transcribe the audio
-    st.write("Transcribing the audio...")
-    transcription = transcribe_audio("uploaded_audio")
+    try:
+        # Load and process audio file
+        audio = load_audio_file(audio_file)
+        
+        # Transcribe the audio
+        transcription = transcribe_audio(audio)
 
-    # Show the transcription result
-    st.subheader("Transcription Result:")
-    st.write(transcription)
+        # Display the transcription result
+        st.subheader("Transcription Result")
+        st.write(transcription)
 
-    # Option to download the transcription
-    st.download_button("Download Transcription", transcription, file_name="transcription.txt")
-
-    # Clean up the uploaded audio file
-    os.remove("uploaded_audio")
+    except Exception as e:
+        st.error(f"Error processing the audio: {e}")
